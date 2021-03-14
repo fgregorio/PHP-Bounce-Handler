@@ -107,7 +107,7 @@ class BounceHandler{
         // parse the email into data structures
         $boundary = isset($this->head_hash['Content-type']['boundary']) ? $this->head_hash['Content-type']['boundary'] : '';
         $mime_sections = $this->parse_body_into_mime_sections($body, $boundary);
-        $this->body_hash = split("\r\n", $body);
+        $this->body_hash = explode("\r\n", $body);
         $this->first_body_hash = isset($mime_sections['first_body_part']) ? $this->parse_head($mime_sections['first_body_part']) : array();
 
         $this->looks_like_a_bounce = $this->is_a_bounce();
@@ -455,7 +455,14 @@ class BounceHandler{
                         $line = substr($line, 0, -1);
                     else
                         $line .= "\r\n";
-                    $decoded .= preg_replace("/=([0-9A-F][0-9A-F])/e", 'chr(hexdec("$1"))', $line);
+                    $decoded .= preg_replace_callback("/=([0-9A-F][0-9A-F])/",
+                        function ($matches) {
+                            return chr(hexdec($matches[0]));
+                        },
+                        // 'chr(hexdec("$1"))',
+                        $line
+                    );
+                    // $decoded .= preg_replace("/=([0-9A-F][0-9A-F])/e", 'chr(hexdec("$1"))', $line);
                 }
                 case 'base64': {
                     $decoded .= base64_decode($line);
@@ -489,7 +496,7 @@ class BounceHandler{
             if(preg_match('/^([^\s.]*):\s*(.*)\s*/', $line, $array)){
                 $entity = ucfirst(strtolower($array[1]));
                 if (isset($array[2]) && strpos($array[2], '=?') !== FALSE) // decode MIME Header encoding (subject lines etc)
-                    $array[2] = iconv_mime_decode($array[2], ICONV_MIME_DECODE_CONTINUE_ON_ERROR, "UTF-8");
+                    $array[2] = @iconv_mime_decode($array[2], ICONV_MIME_DECODE_CONTINUE_ON_ERROR, "UTF-8");
                 if(empty($hash[$entity])){
                     $hash[$entity] = trim($array[2]);
                 }
@@ -504,7 +511,7 @@ class BounceHandler{
             }
             elseif (isset($line) && isset($entity) && preg_match('/^\s+(.+)\s*/', $line) && $entity) {
                 $line = trim($line);
-                if (strpos($array[2], '=?') !== FALSE)
+                if (@strpos($array[2], '=?') !== FALSE)
                     $line = iconv_mime_decode($array[2], ICONV_MIME_DECODE_CONTINUE_ON_ERROR, "UTF-8");
                 $hash[$entity] .= ' '. $line;
             }
